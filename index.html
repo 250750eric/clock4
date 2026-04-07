@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Elite 5.2 - GitHub Edition</title>
+    <title>GPS Clock Elite 5.1 - Final Edition</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; --agi-color: #ff4500; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; touch-action: manipulation; }
         
+        /* ===== 右上角關閉按鈕 ===== */
         #close-btn {
             position: fixed; top: 12px; right: 12px;
             width: 44px; height: 44px;
@@ -16,15 +17,35 @@
             border: 1px solid rgba(255,255,255,0.25);
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 99999; font-size: 22px; color: #aaa;
+            transition: background 0.2s, color 0.2s;
         }
+        #close-btn:active { background: rgba(255,80,80,0.35); color: #fff; }
 
         #main-wrapper { 
             width: 100%; height: 100%; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center;
+            justify-content: center; align-items: center; transition: transform 0.8s ease-in-out;
         }
 
         #top-info-area { font-size: 4vh; margin-bottom: 1vh; text-align: center; cursor: pointer; z-index: 10; }
+        #guide-tip { font-size: 1.8vh; color: #888; margin-bottom: 1vh; opacity: 0; transition: opacity 1s; }
+        
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; cursor: pointer; user-select: none; }
+
+        @keyframes clockPulse {
+            0%   { opacity: 1; transform: scale(1); }
+            40%  { opacity: 0.6; transform: scale(1.03); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        #clock-container.speaking { animation: clockPulse 0.4s ease-out; }
+
+        #speak-toast {
+            position: fixed; bottom: 22vh; left: 50%; transform: translateX(-50%);
+            background: rgba(0,229,255,0.15); border: 1px solid rgba(0,229,255,0.4);
+            color: #00e5ff; font-size: 2vh; padding: 0.6vh 2.5vw; border-radius: 999px;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s;
+            white-space: nowrap; z-index: 100;
+        }
+        #speak-toast.show { opacity: 1; }
         .time-num { font-size: 38vh; transition: color 0.5s; }
         
         #colon-box { width: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -32,14 +53,15 @@
         .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
         #seconds { font-size: 8vh; opacity: 0.6; margin-top: 1vh; font-family: monospace; }
         
-        #weather-area { cursor: pointer; text-align: center; }
+        #weather-area { cursor: pointer; text-align: center; transition: opacity 0.2s; }
+        #weather-area:active { opacity: 0.6; }
         #weather-row { display: flex; gap: 15px; font-size: 4.5vh; margin-top: 2vh; font-weight: bold; }
         #aqi-row { font-size: 3.2vh; margin-top: 1vh; font-weight: bold; }
         #city { color: var(--accent-color); }
         #weather-detail { color: var(--weather-color); }
 
-        #agi-container { margin-top: 3vh; font-size: 2vh; color: #444; font-family: monospace; }
-        #agi-timer { color: var(--agi-color); font-weight: bold; }
+        #agi-container { margin-top: 3vh; font-size: 2vh; color: #444; font-family: monospace; letter-spacing: 1px; }
+        #agi-timer { color: var(--agi-color); font-weight: bold; opacity: 0.8; }
 
         .side-btn { 
             position: absolute; bottom: 5vh; width: 85px; height: 85px; 
@@ -54,7 +76,7 @@
             position: absolute; bottom: 16vh; right: 5vw; width: 220px;
             background: rgba(20, 20, 20, 0.95); border: 1px solid #00ff41;
             padding: 15px; border-radius: 15px; display: none; z-index: 30;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
         }
         .range-group { margin: 10px 0; }
         .range-label { font-size: 14px; color: #00ff41; margin-bottom: 5px; display: flex; justify-content: space-between; }
@@ -63,23 +85,28 @@
         #overlay { 
             position: fixed; top:0; left:0; width:100%; height:100%; 
             background: rgba(0,0,0,0.98); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 9999; cursor: pointer;
+            justify-content: center; align-items: center; z-index: 9999; 
+            color: #fff; cursor: pointer; text-align: center;
         }
 
         @media (orientation: portrait) { 
-            .time-num { font-size: 26vw; } 
-            #weather-row { font-size: 5.5vw !important; flex-direction: column; gap: 5px !important; } 
+            .time-num { font-size: 26vw; } #top-info-area { font-size: 5vw; } 
+            #weather-row { font-size: 5.5vw !important; flex-direction: column; align-items: center; gap: 5px !important; } 
+            #aqi-row { font-size: 4.5vw !important; }
+            #seconds { font-size: 8vw !important; }
             #agi-container { font-size: 3.5vw; }
         }
     </style>
 </head>
 <body onclick="unlockAudio()">
 
-    <div id="close-btn" onclick="closeApp(event)">✕</div>
+    <!-- ===== 右上角關閉鍵 ===== -->
+    <div id="close-btn" onclick="closeApp(event)" title="關閉">✕</div>
 
     <div id="overlay">
-        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 5.2</div>
-        <div style="font-size: 16px; color: #00e5ff;">點擊啟動監測系統</div>
+        <div style="font-size: 28px; font-weight: bold; margin-bottom: 15px;">GPS Clock 5.1</div>
+        <div style="font-size: 16px; color: #00e5ff;">點擊啟動 (全環境監測系統)</div>
+        <div style="font-size: 14px; color: #666; margin-top: 20px;">點擊 GPS 區域聽取完整報告</div>
     </div>
 
     <div id="main-wrapper">
@@ -87,6 +114,7 @@
             <div id="date-str"></div>
             <div id="lunar-str"></div>
         </div>
+        <div id="guide-tip">💡 點擊日期切換配色 | 點擊 GPS 區聽取報告</div>
 
         <div id="clock-container" onclick="speakTime(event)">
             <div class="time-num" id="hh">00</div>
@@ -96,6 +124,7 @@
             </div>
             <div class="time-num" id="mm">00</div>
         </div>
+        <div id="speak-toast">🔊 語音報時中...</div>
 
         <div id="weather-area" onclick="speakFullEnvironment(event)">
             <div id="weather-row">
@@ -106,12 +135,12 @@
         </div>
 
         <div id="agi-container">
-            距 AGI 臨界點：<span id="agi-timer">計算中...</span>
+            距Kurzweil AGI 臨界點剩餘：<span id="agi-timer">計算中...</span>
         </div>
     </div>
 
     <div id="schedule-panel" onclick="event.stopPropagation()">
-        <div style="text-align: center; font-weight: bold; margin-bottom: 10px; color: #fff;">報時時段設定</div>
+        <div style="text-align: center; font-weight: bold; margin-bottom: 10px; color: #fff;">自定報時區間</div>
         <div class="range-group">
             <div class="range-label"><span>開始:</span><span id="start-val">08:00</span></div>
             <input type="range" id="start-hour" min="0" max="23" value="8" oninput="updateScheduleDisplay()">
@@ -133,14 +162,47 @@
     </div>
 
     <script>
-        let lastHour = -1, colorIdx = 0;
+        let lastHour = -1, lastMinute = -1, colorIdx = 0;
         const colors = ['#ffffff', '#ff9800', '#00e5ff', '#00ff41', '#d500f9'];
+
+        // ===== 聲音修正：AudioContext 解鎖 + speechSynthesis 雙保險 =====
+        let audioCtx = null;
+        let audioUnlocked = false;
+
+        function unlockAudioContext() {
+            if (audioUnlocked) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const buf = audioCtx.createBuffer(1, 1, 22050);
+                const src = audioCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(audioCtx.destination);
+                src.start(0);
+                audioUnlocked = true;
+            } catch(e) { console.log("AudioContext unlock failed:", e); }
+        }
+
+        const isAndroidWebView = /wv/.test(navigator.userAgent) || 
+                                  (typeof Android !== 'undefined');
+
         const synth = window.speechSynthesis;
+        let ttsReady = false;
+
+        function initTTS() {
+            if (synth.getVoices().length > 0) {
+                ttsReady = true;
+            } else {
+                synth.addEventListener('voiceschanged', () => { ttsReady = true; });
+            }
+        }
 
         let voiceMode = parseInt(localStorage.getItem('gps_voiceMode')) || 1; 
         let startH = parseInt(localStorage.getItem('gps_startH')) || 8;
         let endH = parseInt(localStorage.getItem('gps_endH')) || 22;
         let use24Hour = (localStorage.getItem('gps_use24H') !== 'false'); 
+        let lastDate = -1;
+        const weeks = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
         let currentWeatherData = { city: "定位中", temp: "", humid: "", desc: "", aqi: "", aqiDesc: "" };
 
         function saveSettings() {
@@ -150,29 +212,132 @@
             localStorage.setItem('gps_use24H', use24Hour);
         }
 
-        function unlockAudio() {
-            document.getElementById('overlay').style.display = 'none';
-            document.getElementById('schedule-panel').style.display = 'none'; // 進入時確保隱藏
-            speak("系統啟動", true);
-            autoLocate();
+        function getLunarText(d) {
+            try {
+                const f = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'}).format(d);
+                const c = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+                return "農曆 " + f.replace(/\d+/, n => {
+                    let v = parseInt(n);
+                    return v <= 10 ? "初"+c[v] : v < 20 ? "十"+c[v%10] : v==20 ? "二十" : "廿"+c[v%10];
+                });
+            } catch (e) { return ''; }
         }
 
-        // 點擊空白處隱藏面板邏輯
-        document.addEventListener('click', function(e) {
-            const panel = document.getElementById('schedule-panel');
-            const voiceBtn = document.getElementById('voice-toggle');
-            if (panel.style.display === 'block' && !panel.contains(e.target) && !voiceBtn.contains(e.target)) {
-                panel.style.display = 'none';
+        function updateDateDisplay(now) {
+            const today = now.getDate();
+            if (today !== lastDate) {
+                lastDate = today;
+                document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${today}日 ${weeks[now.getDay()]}`;
+                document.getElementById('lunar-str').innerText = getLunarText(now);
             }
-        });
+        }
+
+        function autoLocate() {
+            if (typeof AndroidGPS !== 'undefined' && AndroidGPS.getLocation) {
+                try {
+                    const loc = JSON.parse(AndroidGPS.getLocation());
+                    updateWeather(loc.lat, loc.lon);
+                    return;
+                } catch(e) {}
+            }
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => updateWeather(p.coords.latitude, p.coords.longitude),
+                    (err) => {
+                        console.log("GPS error:", err.code, err.message);
+                        fetch('https://ipapi.co/json/')
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.latitude) updateWeather(d.latitude, d.longitude);
+                                else fallbackToTaichung();
+                            })
+                            .catch(() => fallbackToTaichung());
+                    },
+                    { 
+                        timeout: 10000, 
+                        maximumAge: 60000,
+                        enableHighAccuracy: false
+                    }
+                );
+            } else {
+                fallbackToTaichung();
+            }
+        }
+
+        function fallbackToTaichung() {
+            updateWeather(24.1269, 120.7067);
+        }
+
+        async function updateWeather(lat, lon) {
+            try {
+                const [geoRes, weatherRes, aqiRes] = await Promise.allSettled([
+                    fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`).then(r => r.json()),
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`).then(r => r.json()),
+                    fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=demo`).then(r => r.json())
+                ]);
+                if (geoRes.status === 'fulfilled') {
+                    currentWeatherData.city = `${geoRes.value.city || ""}${geoRes.value.locality || ""}` || "台中市";
+                    document.getElementById('city').innerText = currentWeatherData.city;
+                }
+                if (weatherRes.status === 'fulfilled') {
+                    const w = weatherRes.value.current;
+                    const map = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
+                    currentWeatherData.desc = map[w.weather_code] || "多雲";
+                    currentWeatherData.temp = Math.round(w.temperature_2m);
+                    currentWeatherData.humid = w.relative_humidity_2m;
+                    document.getElementById('weather-detail').innerText = `${currentWeatherData.desc} ${currentWeatherData.temp}°C / 濕度 ${currentWeatherData.humid}%`;
+                }
+                if (aqiRes.status === 'fulfilled' && aqiRes.value.status === "ok") {
+                    const v = aqiRes.value.data.aqi;
+                    currentWeatherData.aqi = v;
+                    currentWeatherData.aqiDesc = v > 100 ? "不佳" : (v > 50 ? "普通" : "良好");
+                    const el = document.getElementById('aqi-row');
+                    el.style.color = v > 100 ? "#ff9800" : (v > 50 ? "#ffeb3b" : "#00ff41");
+                    el.innerText = `AQI 空氣質量: ${v} (${currentWeatherData.aqiDesc})`;
+                }
+            } catch (e) { console.log("Weather sync failed"); }
+        }
+
+        function unlockAudio() {
+            unlockAudioContext();
+            document.getElementById('overlay').style.display = 'none';
+            setTimeout(() => speak("系統啟動", true), 300);
+            autoLocate();
+            document.getElementById('schedule-panel').style.display = 'none';
+        }
 
         function speak(text, force = false) {
             if (!force && !isVoiceAllowedNow()) return;
             if (!synth) return;
             synth.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'zh-TW';
-            synth.speak(u);
+            setTimeout(() => {
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'zh-TW';
+                u.rate = 1.0;
+                u.volume = 1.0;
+                const voices = synth.getVoices();
+                const zhVoice = voices.find(v => v.lang.startsWith('zh'));
+                if (zhVoice) u.voice = zhVoice;
+                if (synth.paused) synth.resume();
+                u.onerror = (e) => console.log("TTS error:", e.error);
+                synth.speak(u);
+            }, isAndroidWebView ? 150 : 0);
+        }
+
+        function speakFullEnvironment(e) {
+            e.stopPropagation();
+            const now = new Date();
+            let hh = now.getHours(), mm = now.getMinutes();
+            const period = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午");
+            const sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+            const timePart = `現在時間${period}${sh}點${mm === 0 ? '整' : mm + '分'}`;
+            const envPart = `${currentWeatherData.city}，天氣${currentWeatherData.desc}，氣溫${currentWeatherData.temp}度，濕度${currentWeatherData.humid}趴，空氣${currentWeatherData.aqi}${currentWeatherData.aqiDesc}`;
+            speak(`${timePart}。目前${envPart}。`, true);
+            const toast = document.getElementById('speak-toast');
+            toast.innerText = "🔊 讀取環境報告中...";
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
         function isVoiceAllowedNow() {
@@ -182,31 +347,51 @@
             return (startH < endH) ? (hr >= startH && hr < endH) : (hr >= startH || hr < endH);
         }
 
+        function speakTime(e) {
+            e.stopPropagation();
+            const now = new Date();
+            let hh = now.getHours(), mm = now.getMinutes();
+            const period = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午");
+            const sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+            speak(`現在時間，${period}${sh}點${mm === 0 ? "整" : mm + "分"}`, true); 
+            const clock = document.getElementById('clock-container');
+            clock.classList.add('speaking');
+            const toast = document.getElementById('speak-toast');
+            toast.innerText = "🔊 語音報時中...";
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); clock.classList.remove('speaking'); }, 2000);
+        }
+
+        function toggleFormat(e) {
+            e.stopPropagation();
+            use24Hour = !use24Hour;
+            saveSettings();
+            document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
+            speak("切換" + (use24Hour ? "24小時制" : "12小時制"), true);
+            tick();
+        }
+
         function toggleVoice(e) {
             e.stopPropagation();
             voiceMode = (voiceMode + 1) % 3;
             saveSettings();
             updateVoiceUI();
-            if (voiceMode === 2) { 
-                speak(`定時模式，${startH}點至${endH}點`, true);
-            } else {
-                speak(voiceMode === 1 ? "報時開啟" : "報時關閉", true);
+            if (voiceMode === 1) { 
+                speak("報時全天開啟", true);
+            } else if (voiceMode === 2) { 
+                speak(`進入定時模式，時段為 ${startH} 點至 ${endH} 點`, true);
+            } else { 
+                speak("報時功能已關閉", true);
             }
         }
 
         function updateVoiceUI() {
             const s = document.getElementById('v-status'), sub = document.getElementById('v-sub');
             const panel = document.getElementById('schedule-panel');
-            
-            if (voiceMode === 2) {
-                s.innerText = "定時"; s.style.color = "#00ff41";
-                sub.innerText = `${startH}-${endH}時`;
-                panel.style.display = 'block'; // 切換到定時模式才顯示
-            } else {
-                panel.style.display = 'none'; // 非定時模式一律隱藏
-                if (voiceMode === 1) { s.innerText = "全天"; s.style.color = "#ff9800"; sub.innerText = "報時"; }
-                else { s.innerText = "關閉"; s.style.color = "#888"; sub.innerText = "靜音"; }
-            }
+            panel.style.display = (voiceMode === 2) ? 'block' : 'none';
+            if (voiceMode === 1) { s.innerText = "全天"; s.style.color = "#ff9800"; sub.innerText = "報時"; }
+            else if (voiceMode === 2) { s.innerText = "定時"; s.style.color = "#00ff41"; sub.innerText = `${startH}-${endH}時`; }
+            else { s.innerText = "關閉"; s.style.color = "#888"; sub.innerText = "靜音"; }
         }
 
         function updateScheduleDisplay() {
@@ -218,62 +403,59 @@
             document.getElementById('v-sub').innerText = `${startH}-${endH}時`;
         }
 
-        function autoLocate() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => updateWeather(p.coords.latitude, p.coords.longitude),
-                    () => updateWeather(24.12, 120.67), // 失敗則預設台中
-                    { timeout: 10000 }
-                );
-            }
+        function updateAGI() {
+            const target = new Date("2029-12-07T00:00:00").getTime();
+            const now = new Date().getTime();
+            const diff = target - now;
+            const d = Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+            const h = Math.max(0, Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+            document.getElementById('agi-timer').innerText = (diff <= 0) ? "LIMIT REACHED" : `${d} 天 ${h} 小時`;
         }
 
-        async function updateWeather(lat, lon) {
-            try {
-                const [geo, weather, aqi] = await Promise.all([
-                    fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`).then(r => r.json()),
-                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`).then(r => r.json()),
-                    fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=demo`).then(r => r.json())
-                ]);
-                currentWeatherData.city = geo.city || "台中市";
-                document.getElementById('city').innerText = currentWeatherData.city;
-                const w = weather.current;
-                currentWeatherData.temp = Math.round(w.temperature_2m);
-                currentWeatherData.humid = w.relative_humidity_2m;
-                document.getElementById('weather-detail').innerText = `${currentWeatherData.temp}°C / 濕度 ${currentWeatherData.humid}%`;
-                if (aqi.status === "ok") {
-                    currentWeatherData.aqi = aqi.data.aqi;
-                    document.getElementById('aqi-row').innerText = `AQI: ${currentWeatherData.aqi}`;
-                }
-            } catch (e) {}
+        function changeColor(e) { 
+            e.stopPropagation(); 
+            colorIdx = (colorIdx + 1) % colors.length; 
+            document.documentElement.style.setProperty('--main-color', colors[colorIdx]); 
+            speak("切換配色", true); 
+        }
+
+        function closeApp(e) {
+            e.stopPropagation();
+            if (typeof AndroidApp !== 'undefined' && AndroidApp.closeApp) {
+                AndroidApp.closeApp();
+                return;
+            }
+            window.close();
+            setTimeout(() => {
+                document.body.style.transition = 'opacity 0.4s';
+                document.body.style.opacity = '0';
+            }, 50);
         }
 
         function tick() {
             const now = new Date();
             let hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
+            const ind = document.getElementById('ampm-indicator');
+            if (use24Hour) { ind.innerHTML = '<div class="dot"></div>'; } 
+            else { ind.innerText = hh >= 12 ? "下午" : "上午"; ind.style.fontSize = "2.5vh"; }
             document.getElementById('hh').innerText = String(use24Hour ? hh : (hh % 12 || 12)).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
-            
-            const target = new Date("2029-12-07T00:00:00").getTime();
-            const diff = target - now.getTime();
-            document.getElementById('agi-timer').innerText = `${Math.floor(diff/(1000*60*60*24))}天`;
-
+            updateDateDisplay(now);
+            updateAGI();
             if (mm === 0 && ss === 0 && hh !== lastHour) {
-                speak(`現在時間${hh}點整`);
+                let p = hh < 12 ? "上午" : (hh === 12 ? "中午" : "下午"), sh = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+                speak(`現在時間，${p}${sh}點整`);
                 lastHour = hh; autoLocate();
             }
         }
 
-        function toggleFormat(e) { e.stopPropagation(); use24Hour = !use24Hour; saveSettings(); tick(); }
-        function changeColor(e) { e.stopPropagation(); colorIdx = (colorIdx + 1) % colors.length; document.documentElement.style.setProperty('--main-color', colors[colorIdx]); }
-        function closeApp(e) { e.stopPropagation(); window.close(); }
-
         window.onload = () => { 
+            initTTS();
             updateVoiceUI(); 
             document.getElementById('start-hour').value = startH;
             document.getElementById('end-hour').value = endH;
-            setInterval(tick, 1000); 
+            tick(); setInterval(tick, 1000); 
         };
     </script>
 </body>
